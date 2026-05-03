@@ -1,5 +1,7 @@
 from django.shortcuts import render
 from .forms import UploadForm
+import pdfplumber
+
 # Create your views here.
 
 def home(request):
@@ -13,13 +15,27 @@ def upload(request):
         if form.is_valid():
             note = form.save()
 
-            print("Saved:", note.title)
+            # 🔥 Extract text from PDF
+            text = ""
 
+            with pdfplumber.open(note.file.path) as pdf:
+                for page in pdf.pages:
+                    page_text = page.extract_text()
+                    if page_text:
+                        text += page_text + "\n"
+
+            # Save extracted text
+            note.content = text
+            note.save()
+
+            print("TEXT LENGTH:", len(text))
+            print(text[:200])
             return render(request, "core/upload.html", {
                 "form": UploadForm(),
-                "success": "Saved to database"
+                "success": "PDF processed"
+                
             })
-        print(note.id, note.title)
+
     else:
         form = UploadForm()
 
