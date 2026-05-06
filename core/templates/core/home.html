@@ -1,11 +1,31 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>AI Study Assistant</title>
+    <title>Dashboard</title>
 </head>
 <body>
-    <h1>Welcome to AI Study Assistant</h1>
-    <p>This is Day 3 🚀</p>
-    <h2>My name is reyaz ahmad</h2>
+
+    <h1>My Notes</h1>
+
+    <a href="/upload/">Upload New PDF</a>
+
+    <hr>
+    
+    {% for note in notes %}
+    
+        <div style="margin-bottom:20px;">
+            <h3>{{ note.title }}</h3>
+
+            <p>
+                {{ note.content|truncatechars:200 }}
+                
+            </p>
+
+            <hr>
+        </div>
+    {% empty %}
+        <p>No notes uploaded yet.</p>
+    {% endfor %}
+
 </body>
 </html>

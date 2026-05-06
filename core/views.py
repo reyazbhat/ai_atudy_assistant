@@ -1,11 +1,15 @@
 from django.shortcuts import render
 from .forms import UploadForm
 import pdfplumber
+from .models import Note
 
 # Create your views here.
 
 def home(request):
-    return render(request, "core/home.html")
+    notes = Note.objects.all().order_by('-id')
+    return render(request, "core/home.html",{
+        "notes": notes
+    })
 
 
 def upload(request):
