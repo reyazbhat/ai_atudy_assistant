@@ -1,64 +1,93 @@
 from django.shortcuts import render
 from .forms import UploadForm
-import pdfplumber
 from .models import Note
-from django.shortcuts import get_object_or_404
+import pdfplumber
 import requests
-import google.generativeai as genai
-import os
-from dotenv import load_dotenv
-# Create your views here.
+import re
 
+
+# HOME PAGE
 def home(request):
+
     notes = Note.objects.all().order_by('-id')
-    return render(request, "core/home.html",{
+
+    return render(request, "core/home.html", {
         "notes": notes
     })
 
 
+# UPLOAD PDF
 def upload(request):
+
     if request.method == "POST":
+
         form = UploadForm(request.POST, request.FILES)
 
         if form.is_valid():
+
             note = form.save()
 
-            # 🔥 Extract text from PDF
+            # EXTRACT TEXT FROM PDF
             text = ""
 
             with pdfplumber.open(note.file.path) as pdf:
+
                 for page in pdf.pages:
+
                     page_text = page.extract_text()
+
                     if page_text:
                         text += page_text + "\n"
 
-            # Save extracted text
-            note.content = text
-            note.save()
+            # CLEAN TEXT
+            text = clean_text(text)
 
             print("TEXT LENGTH:", len(text))
-            print(text[:200])
+            print(text[:500])
+
+            # SUMMARIZE USING OLLAMA
+            summary = summarize_text(text[:2000])
+
+            print(summary)
+
+            # SAVE SUMMARY
+            note.content = summary
+            note.save()
+
             return render(request, "core/upload.html", {
                 "form": UploadForm(),
-                "success": "PDF processed"
-                
+                "success": "PDF processed successfully"
             })
 
     else:
         form = UploadForm()
 
-    return render(request, "core/upload.html", {"form": form})
+    return render(request, "core/upload.html", {
+        "form": form
+    })
 
+
+# NOTE DETAIL + Q&A
 def note_detail(request, id):
+
     note = Note.objects.get(id=id)
 
     answer = ""
 
     if request.method == "POST":
+
         question = request.POST.get("question")
 
         prompt = f"""
-        Answer the question ONLY from the provided notes.
+        You are an AI study assistant.
+
+        Answer the question from the notes below.
+
+        RULES:
+        - Answer clearly
+        - Use bullet points if needed
+        - Be student friendly
+        - Answer only from notes
 
         NOTES:
         {note.content}
@@ -67,22 +96,31 @@ def note_detail(request, id):
         {question}
         """
 
-        answer = ask_gemini(prompt)
+        answer = ask_ai(prompt)
 
     return render(request, "core/note_detail.html", {
         "note": note,
         "answer": answer
     })
 
+
+# SUMMARIZE TEXT
 def summarize_text(text):
-    url = "http://localhost:11434/api/generate"
 
     prompt = f"""
-Summarize the following content in bullet points.
+    Summarize these study notes clearly.
 
-CONTENT:
-{text[:2000]}
-"""
+    RULES:
+    - Use bullet points
+    - Keep important concepts only
+    - Remove repeated text
+    - Student friendly
+
+    CONTENT:
+    {text}
+    """
+
+    url = "http://localhost:11434/api/generate"
 
     payload = {
         "model": "phi3",
@@ -90,18 +128,52 @@ CONTENT:
         "stream": False
     }
 
-    response = requests.post(url, json=payload)
+    try:
 
-    data = response.json()
+        response = requests.post(url, json=payload)
 
-    return data.get("response", "")
+        data = response.json()
 
-load_dotenv()
+        return data.get("response", "")
 
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+    except Exception as e:
 
-def ask_gemini(prompt):
+        print("OLLAMA ERROR:", e)
 
-    response = model.generate_content(prompt)
+        return "⚠️ AI summary unavailable"
 
-    return response.text
+
+# ASK AI
+def ask_ai(prompt):
+
+    url = "http://localhost:11434/api/generate"
+
+    payload = {
+        "model": "phi3",
+        "prompt": prompt,
+        "stream": False
+    }
+
+    try:
+
+        response = requests.post(url, json=payload)
+
+        data = response.json()
+
+        return data.get("response", "")
+
+    except Exception as e:
+
+        print("OLLAMA ERROR:", e)
+
+        return "⚠️ AI answer unavailable"
+
+
+# CLEAN TEXT
+def clean_text(text):
+
+    text = re.sub(r'\s+', ' ', text)
+
+    text = re.sub(r'[^a-zA-Z0-9.,!?()\-\n ]', '', text)
+
+    return text.strip()
