@@ -19,6 +19,8 @@ from django.urls import path
 from core.views import home
 from core.views import upload
 from core.views import home, upload, note_detail
+from django.conf import settings
+from django.conf.urls.static import static
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -26,3 +28,6 @@ urlpatterns = [
     path('upload/', upload),
     path('note/<int:id>/', note_detail),
 ]
+
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

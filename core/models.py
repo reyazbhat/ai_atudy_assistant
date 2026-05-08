@@ -3,7 +3,7 @@ from django.db import models
 # Create your models here.
 class Note(models.Model):
     title = models.CharField(max_length=100)
-    file = models.FileField(upload_to='notes/')
+    file = models.FileField(upload_to='uploads/')
     content = models.TextField(blank=True)
     summary = models.TextField(blank=True)
     def __str__(self):
