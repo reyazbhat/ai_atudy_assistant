@@ -3,7 +3,10 @@ from .forms import UploadForm
 import pdfplumber
 from .models import Note
 from django.shortcuts import get_object_or_404
-
+import requests
+import google.generativeai as genai
+import os
+from dotenv import load_dotenv
 # Create your views here.
 
 def home(request):
@@ -52,3 +55,29 @@ def note_detail(request, id):
     return render(request, "core/note_detail.html", {
         "note": note
     })
+
+def summarize_text(text):
+    url = "http://localhost:11434/api/generate"
+
+    prompt = f"""
+Summarize the following content in bullet points.
+
+CONTENT:
+{text[:2000]}
+"""
+
+    payload = {
+        "model": "phi3",
+        "prompt": prompt,
+        "stream": False
+    }
+
+    response = requests.post(url, json=payload)
+
+    data = response.json()
+
+    return data.get("response", "")
+
+load_dotenv()
+
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
