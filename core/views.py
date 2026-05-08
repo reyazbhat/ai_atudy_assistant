@@ -50,10 +50,28 @@ def upload(request):
     return render(request, "core/upload.html", {"form": form})
 
 def note_detail(request, id):
-    note = get_object_or_404(Note, id=id)
+    note = Note.objects.get(id=id)
+
+    answer = ""
+
+    if request.method == "POST":
+        question = request.POST.get("question")
+
+        prompt = f"""
+        Answer the question ONLY from the provided notes.
+
+        NOTES:
+        {note.content}
+
+        QUESTION:
+        {question}
+        """
+
+        answer = ask_gemini(prompt)
 
     return render(request, "core/note_detail.html", {
-        "note": note
+        "note": note,
+        "answer": answer
     })
 
 def summarize_text(text):
@@ -81,3 +99,9 @@ CONTENT:
 load_dotenv()
 
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+
+def ask_gemini(prompt):
+
+    response = model.generate_content(prompt)
+
+    return response.text

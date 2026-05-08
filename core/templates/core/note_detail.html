@@ -13,5 +13,21 @@
 
     <p>{{ note.content }}</p>
 
+    <h2>Ask AI</h2>
+
+<form method="POST">
+    {% csrf_token %}
+    
+    <input type="text" name="question" placeholder="Ask something...">
+
+    <button type="submit">
+        Ask
+    </button>
+</form>
+
+{% if answer %}
+    <h3>Answer:</h3>
+    <p>{{ answer }}</p>
+{% endif %}
 </body>
 </html>

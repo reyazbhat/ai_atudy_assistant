@@ -22,11 +22,12 @@ from core.views import home, upload, note_detail
 from django.conf import settings
 from django.conf.urls.static import static
 
+from django.contrib import admin
+from django.urls import path, include
+
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('',home),
-    path('upload/', upload),
-    path('note/<int:id>/', note_detail),
+    path('', include('core.urls')),
 ]
 
 if settings.DEBUG:
