@@ -2,6 +2,7 @@ from django.shortcuts import render
 from .forms import UploadForm
 import pdfplumber
 from .models import Note
+from django.shortcuts import get_object_or_404
 
 # Create your views here.
 
@@ -44,3 +45,10 @@ def upload(request):
         form = UploadForm()
 
     return render(request, "core/upload.html", {"form": form})
+
+def note_detail(request, id):
+    note = get_object_or_404(Note, id=id)
+
+    return render(request, "core/note_detail.html", {
+        "note": note
+    })

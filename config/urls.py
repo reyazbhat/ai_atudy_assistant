@@ -18,8 +18,11 @@ from django.contrib import admin
 from django.urls import path
 from core.views import home
 from core.views import upload
+from core.views import home, upload, note_detail
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('',home),
     path('upload/', upload),
+    path('note/<int:id>/', note_detail),
 ]

@@ -14,7 +14,11 @@
     {% for note in notes %}
     
         <div style="margin-bottom:20px;">
-            <h3>{{ note.title }}</h3>
+            <h3>
+                <a href="/note/{{ note.id }}/">
+                    {{ note.title }}
+                </a>
+            </h3>
 
             <p>
                 {{ note.content|truncatechars:200 }}
