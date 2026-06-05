@@ -177,3 +177,45 @@ def clean_text(text):
     text = re.sub(r'[^a-zA-Z0-9.,!?()\-\n ]', '', text)
 
     return text.strip()
+
+def generate_mcqs(text):
+
+    prompt = f"""
+    Generate 10 multiple choice questions from the notes.
+
+    Format:
+
+    1. Question
+
+    A)
+    B)
+    C)
+    D)
+
+    Answer: Correct Option
+
+    NOTES:
+    {text}
+    """
+
+    url = "http://localhost:11434/api/generate"
+
+    payload = {
+        "model": "phi3",
+        "prompt": prompt,
+        "stream": False
+    }
+
+    try:
+
+        response = requests.post(url, json=payload)
+
+        data = response.json()
+
+        return data.get("response", "")
+
+    except Exception as e:
+
+        print("MCQ ERROR:", e)
+
+        return "Unable to generate MCQs."
