@@ -6,5 +6,6 @@ class Note(models.Model):
     file = models.FileField(upload_to='uploads/')
     content = models.TextField(blank=True)
     summary = models.TextField(blank=True)
+    mcqs = models.TextField(blank=True)
     def __str__(self):
         return self.title
