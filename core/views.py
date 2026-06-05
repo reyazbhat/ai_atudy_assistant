@@ -48,10 +48,11 @@ def upload(request):
             # SUMMARIZE USING OLLAMA
             summary = summarize_text(text[:2000])
 
-            print(summary)
+            mcqs = generate_mcqs(text[:2000])
 
-            # SAVE SUMMARY
             note.content = summary
+            note.mcqs = mcqs
+
             note.save()
 
             return render(request, "core/upload.html", {
