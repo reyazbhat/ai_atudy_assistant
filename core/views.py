@@ -30,7 +30,11 @@ def upload(request):
 
         if form.is_valid():
 
-            note = form.save()
+            note = form.save(commit=False)
+
+            note.user = request.user
+
+            note.save()
 
             # EXTRACT TEXT FROM PDF
             text = ""
@@ -77,7 +81,9 @@ def upload(request):
 @login_required
 def note_detail(request, id):
 
-    note = Note.objects.get(id=id)
+    notes = Note.objects.filter(
+    user=request.user
+    ).order_by('-id')
 
     answer = ""
 
