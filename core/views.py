@@ -10,6 +10,7 @@ from django.shortcuts import redirect
 
 
 # HOME PAGE
+@login_required
 def home(request):
 
     notes = Note.objects.all().order_by('-id')
@@ -20,6 +21,7 @@ def home(request):
 
 
 # UPLOAD PDF
+@login_required
 def upload(request):
 
     if request.method == "POST":
@@ -72,6 +74,7 @@ def upload(request):
 
 
 # NOTE DETAIL + Q&A
+@login_required
 def note_detail(request, id):
 
     note = Note.objects.get(id=id)
