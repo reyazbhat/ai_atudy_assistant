@@ -30,6 +30,8 @@
     {% empty %}
         <p>No notes uploaded yet.</p>
     {% endfor %}
-
+<a href="{% url 'logout' %}">
+    Logout
+</a>
 </body>
 </html>
