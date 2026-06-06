@@ -4,6 +4,9 @@ from .models import Note
 import pdfplumber
 import requests
 import re
+from django.contrib.auth.views import LoginView
+from django.contrib.auth import logout
+from django.shortcuts import redirect
 
 
 # HOME PAGE
@@ -220,3 +223,14 @@ def generate_mcqs(text):
         print("MCQ ERROR:", e)
 
         return "Unable to generate MCQs."
+    
+
+class CustomLoginView(LoginView):
+    template_name = "core/login.html"
+
+
+def logout_view(request):
+
+    logout(request)
+
+    return redirect("login")
