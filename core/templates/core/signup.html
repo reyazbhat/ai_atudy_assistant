@@ -1,6 +1,6 @@
 {% extends 'core/base.html' %}
 
-{% block title %}Login - StudyGenius AI{% endblock %}
+{% block title %}Sign Up - StudyGenius AI{% endblock %}
 
 {% block extra_css %}
 .auth-wrapper {
@@ -13,13 +13,13 @@
 
 .auth-card {
     width: 100%;
-    max-width: 440px;
+    max-width: 480px;
     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
     animation: fadeIn 0.5s ease-out;
 }
 
 .auth-title {
-    font-size: 2.2rem;
+    font-size: 2rem;
     font-weight: 700;
     text-align: center;
     margin-bottom: 0.5rem;
@@ -51,6 +51,14 @@
     outline: none;
     border-color: var(--primary-light);
     box-shadow: 0 0 0 3px var(--primary-glow);
+}
+
+.form-help {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 0.25rem;
+    line-height: 1.4;
 }
 
 .form-error {
@@ -91,8 +99,8 @@
 {% block content %}
 <div class="auth-wrapper">
     <div class="glass-card auth-card">
-        <h2 class="auth-title">Welcome Back</h2>
-        <p class="auth-subtitle">Log in to access your AI study guides</p>
+        <h2 class="auth-title">Create Account</h2>
+        <p class="auth-subtitle">Join StudyGenius AI to automate your note taking</p>
         
         <form method="POST">
             {% csrf_token %}
@@ -109,19 +117,22 @@
                 <div class="form-group">
                     <label for="{{ field.id_for_label }}">{{ field.label }}</label>
                     {{ field }}
+                    {% if field.help_text %}
+                        <small class="form-help">{{ field.help_text|safe }}</small>
+                    {% endif %}
                     {% for error in field.errors %}
                         <div class="form-error">{{ error }}</div>
                     {% endfor %}
                 </div>
             {% endfor %}
             
-            <button type="submit" class="btn btn-primary btn-block" id="btnLoginSubmit">
-                Login
+            <button type="submit" class="btn btn-primary btn-block" id="btnSignupSubmit">
+                Create Account
             </button>
         </form>
         
         <div class="auth-footer">
-            Don't have an account? <a href="{% url 'signup' %}" id="linkSignup">Sign up here</a>
+            Already have an account? <a href="{% url 'login' %}" id="linkLogin">Login here</a>
         </div>
     </div>
 </div>

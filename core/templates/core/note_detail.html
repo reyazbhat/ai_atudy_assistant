@@ -1,40 +1,413 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>{{ note.title }}</title>
-</head>
-<body>
+{% extends 'core/base.html' %}
 
-    <a href="/">← Back</a>
+{% block title %}{{ note.title }} - StudyGenius AI{% endblock %}
 
-    <h1>{{ note.title }}</h1>
+{% block extra_css %}
+.workspace-layout {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 2rem;
+    align-items: start;
+    margin-bottom: 3rem;
+}
 
-    <hr>
+/* Sidebar styling */
+.sidebar-panel {
+    position: sticky;
+    top: 2rem;
+    max-height: calc(100vh - 120px);
+    overflow-y: auto;
+    padding-right: 0.5rem;
+}
 
-    <p>{{ note.content }}</p>
+.sidebar-title {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    margin-bottom: 1rem;
+    font-weight: 700;
+}
 
-    <h2>Ask AI</h2>
+.sidebar-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+}
 
-<form method="POST">
-    {% csrf_token %}
+.sidebar-item {
+    padding: 0.85rem 1rem;
+    border-radius: var(--radius-md);
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--card-border);
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: var(--transition);
+}
+
+.sidebar-item:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.15);
+    color: var(--text-primary);
+}
+
+.sidebar-item.active {
+    background: rgba(99, 102, 241, 0.12);
+    border-color: var(--primary-light);
+    color: var(--text-primary);
+    font-weight: 600;
+    box-shadow: inset 3px 0 0 var(--primary-light);
+}
+
+/* Main workspace styling */
+.workspace-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--card-border);
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.note-title {
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    line-height: 1.2;
+}
+
+.workspace-actions {
+    display: flex;
+    gap: 0.75rem;
+}
+
+.workspace-grid {
+    display: grid;
+    grid-template-columns: 1.1fr 0.9fr;
+    gap: 2rem;
+    align-items: start;
+}
+
+@media (max-width: 1100px) {
+    .workspace-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 900px) {
+    .workspace-layout {
+        grid-template-columns: 1fr;
+    }
+    .sidebar-panel {
+        display: none; /* Hide sidebar on small viewports to focus on content */
+    }
+}
+
+/* Left panel content cards */
+.summary-container {
+    padding: 1.75rem;
+}
+
+.section-title {
+    font-size: 1.35rem;
+    font-weight: 700;
+    margin-bottom: 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--text-primary);
+}
+
+.summary-text {
+    font-size: 0.975rem;
+    line-height: 1.7;
+    color: var(--text-secondary);
+    white-space: pre-wrap;
+}
+
+/* Accordion for Full Extracted Text */
+details.full-text-details {
+    margin-top: 1.5rem;
+    padding: 1rem 1.5rem;
+    cursor: pointer;
+}
+
+details.full-text-details summary {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 600;
+    color: var(--text-primary);
+    outline: none;
+    user-select: none;
+    font-size: 1.05rem;
+}
+
+.full-text-content {
+    margin-top: 1rem;
+    max-height: 350px;
+    overflow-y: auto;
+    padding: 1.25rem;
+    background: rgba(0, 0, 0, 0.25);
+    border-radius: var(--radius-md);
+    font-size: 0.9rem;
+    line-height: 1.6;
+    color: var(--text-secondary);
+    white-space: pre-wrap;
+    cursor: default;
+    border: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+/* Chat Panel Styling */
+.chat-card {
+    padding: 1.5rem;
+}
+
+.chat-messages {
+    height: 300px;
+    overflow-y: auto;
+    padding: 1rem;
+    background: rgba(10, 15, 30, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.03);
+    border-radius: var(--radius-md);
+    margin-bottom: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.chat-bubble {
+    max-width: 85%;
+    padding: 0.75rem 1rem;
+    border-radius: var(--radius-md);
+    font-size: 0.875rem;
+    line-height: 1.5;
+    white-space: pre-wrap;
+}
+
+.chat-bubble.ai {
+    align-self: flex-start;
+    background: rgba(99, 102, 241, 0.08);
+    border: 1px solid rgba(99, 102, 241, 0.25);
+    color: var(--text-primary);
+    border-bottom-left-radius: 2px;
+}
+
+.chat-bubble.user {
+    align-self: flex-end;
+    background: linear-gradient(135deg, var(--primary), var(--secondary));
+    color: white;
+    border-bottom-right-radius: 2px;
+}
+
+.chat-input-group {
+    display: flex;
+    gap: 0.5rem;
+}
+
+/* MCQ Panel Styling */
+.mcq-card {
+    margin-top: 1.5rem;
+    padding: 1.5rem;
+}
+
+.mcq-container {
+    max-height: 400px;
+    overflow-y: auto;
+    padding: 1rem;
+    background: rgba(10, 15, 30, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.03);
+    border-radius: var(--radius-md);
+}
+
+.mcq-text {
+    white-space: pre-wrap;
+    font-size: 0.9rem;
+    line-height: 1.6;
+    color: var(--text-secondary);
+}
+
+.chat-clear-btn {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    background: none;
+    border: none;
+    cursor: pointer;
+    float: right;
+    transition: var(--transition);
+}
+
+.chat-clear-btn:hover {
+    color: var(--danger);
+}
+{% endblock %}
+
+{% block content %}
+<div class="workspace-layout">
     
-    <input type="text" name="question" placeholder="Ask something...">
+    <!-- Sidebar: Other Notes -->
+    <div class="sidebar-panel">
+        <h3 class="sidebar-title">Documents</h3>
+        <div class="sidebar-list">
+            {% for n in notes %}
+                <a href="{% url 'note_detail' n.id %}" class="sidebar-item {% if n.id == note.id %}active{% endif %}" title="{{ n.title }}" id="sidebarNote_{{ n.id }}">
+                    📄 {{ n.title }}
+                </a>
+            {% empty %}
+                <p style="font-size: 0.8rem; color: var(--text-muted);">No other notes</p>
+            {% endfor %}
+        </div>
+    </div>
 
-    <button type="submit">
-        Ask
-    </button>
-</form>
+    <!-- Main Workspace -->
+    <div class="workspace-main">
+        <div class="workspace-header">
+            <div>
+                <a href="{% url 'home' %}" style="font-size: 0.875rem; color: var(--text-secondary); display: inline-block; margin-bottom: 0.5rem;" id="linkBackDashboard">
+                    ← Back to Dashboard
+                </a>
+                <h1 class="note-title">{{ note.title }}</h1>
+            </div>
+            
+            <div class="workspace-actions">
+                {% if note.file %}
+                    <a href="{{ note.file.url }}" class="btn btn-secondary" download title="Download Original PDF" id="btnDownloadPDF">
+                        ⬇️ Download PDF
+                    </a>
+                {% endif %}
+            </div>
+        </div>
 
-{% if answer %}
-    <h3>Answer:</h3>
-    <p>{{ answer }}</p>
-{% endif %}
-<hr>
+        <div class="workspace-grid">
+            
+            <!-- Left Column: Summary and Full Text -->
+            <div class="workspace-left">
+                <div class="glass-card summary-container">
+                    <h2 class="section-title">✨ AI Summary</h2>
+                    <div class="summary-text">{{ note.summary|default:note.content }}</div>
+                </div>
 
-<h2>Generated MCQs</h2>
+                {% if note.summary %}
+                    <!-- Only show full text details if summary was populated separately -->
+                    <details class="glass-card full-text-details" id="detailsFullText">
+                        <summary>📖 View Full Extracted Text</summary>
+                        <div class="full-text-content">{{ note.content }}</div>
+                    </details>
+                {% endif %}
+            </div>
 
-<pre>
-{{ note.mcqs }}
-</pre>
-</body>
-</html>
+            <!-- Right Column: Q&A and MCQs -->
+            <div class="workspace-right">
+                
+                <!-- Chat Assistant Card -->
+                <div class="glass-card chat-card">
+                    <button class="chat-clear-btn" onclick="clearChat()" title="Reset chat history" id="btnResetChat">
+                        Reset Chat
+                    </button>
+                    <h2 class="section-title">💬 Ask AI Assistant</h2>
+                    
+                    <div class="chat-messages" id="chat-messages">
+                        <!-- Filled by JavaScript -->
+                    </div>
+                    
+                    <form method="POST" class="ai-loading-form" data-loading-text="AI is reading notes and drafting an answer..." id="chat-form">
+                        {% csrf_token %}
+                        <div class="chat-input-group">
+                            <input type="text" name="question" id="chatQuestionInput" class="form-control" placeholder="Ask a question about this note..." required autocomplete="off">
+                            <button type="submit" class="btn btn-primary" id="btnChatSend">Send</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- MCQs Card -->
+                {% if note.mcqs %}
+                    <div class="glass-card mcq-card">
+                        <h2 class="section-title">📝 Generated MCQs</h2>
+                        <div class="mcq-container">
+                            <div class="mcq-text">{{ note.mcqs }}</div>
+                        </div>
+                    </div>
+                {% endif %}
+                
+            </div>
+            
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const noteId = "{{ note.id }}";
+    
+    // Function to load and render chat history
+    function renderChat() {
+        let chatHistory = [];
+        try {
+            chatHistory = JSON.parse(localStorage.getItem("chat_history_" + noteId)) || [];
+        } catch (e) {
+            chatHistory = [];
+        }
+
+        // Default greeting if empty
+        if (chatHistory.length === 0) {
+            chatHistory.push({
+                sender: "ai",
+                text: "Hello! I am your AI study assistant. Ask me any question about the contents of \"{{ note.title }}\"!"
+            });
+            localStorage.setItem("chat_history_" + noteId, JSON.stringify(chatHistory));
+        }
+
+        const chatContainer = document.getElementById("chat-messages");
+        chatContainer.innerHTML = "";
+        
+        chatHistory.forEach(msg => {
+            const bubble = document.createElement("div");
+            bubble.className = "chat-bubble " + msg.sender;
+            bubble.innerText = msg.text;
+            chatContainer.appendChild(bubble);
+        });
+        
+        // Scroll to the bottom
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
+    // Function to clear chat
+    function clearChat() {
+        if (confirm("Are you sure you want to reset the chat history for this document?")) {
+            localStorage.removeItem("chat_history_" + noteId);
+            renderChat();
+        }
+    }
+
+    // Process new question/answer from server context
+    const serverQuestion = "{{ question|escapejs }}";
+    const serverAnswer = "{{ answer|escapejs }}";
+
+    if (serverQuestion && serverAnswer) {
+        let chatHistory = [];
+        try {
+            chatHistory = JSON.parse(localStorage.getItem("chat_history_" + noteId)) || [];
+        } catch (e) {
+            chatHistory = [];
+        }
+
+        // Check duplicates to avoid adding on page reload
+        const lastMsg = chatHistory[chatHistory.length - 1];
+        const secondLastMsg = chatHistory[chatHistory.length - 2];
+        const isDuplicate = secondLastMsg && secondLastMsg.text === serverQuestion && lastMsg && lastMsg.text === serverAnswer;
+
+        if (!isDuplicate) {
+            chatHistory.push({ sender: "user", text: serverQuestion });
+            chatHistory.push({ sender: "ai", text: serverAnswer });
+            localStorage.setItem("chat_history_" + noteId, JSON.stringify(chatHistory));
+        }
+    }
+
+    // Initialize chat on load
+    renderChat();
+</script>
+{% endblock %}

@@ -1,19 +1,25 @@
-from django.shortcuts import render
+from django.shortcuts import render, get_object_or_404, redirect
 from .forms import UploadForm
 from .models import Note
 import pdfplumber
 import requests
 import re
+import os
+from dotenv import load_dotenv
 from django.contrib.auth.views import LoginView
-from django.contrib.auth import logout
-from django.shortcuts import redirect
+from django.contrib.auth import logout, login
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.forms import UserCreationForm
+from concurrent.futures import ThreadPoolExecutor
+
+load_dotenv()
 
 
 # HOME PAGE
 @login_required
 def home(request):
 
-    notes = Note.objects.all().order_by('-id')
+    notes = Note.objects.filter(user=request.user).order_by('-id')
 
     return render(request, "core/home.html", {
         "notes": notes
@@ -54,19 +60,19 @@ def upload(request):
             print("TEXT LENGTH:", len(text))
             print(text[:500])
 
-            # SUMMARIZE USING OLLAMA
-            summary = summarize_text(text[:2000])
+            # GENERATE STUDY GUIDE (SUMMARY AND MCQS) IN ONE REQUEST TO AVOID CPU OVERLOAD
+            summary, mcqs = generate_study_guide(text[:2000])
 
-            mcqs = generate_mcqs(text[:2000])
-
-            note.content = summary
+            note.content = text
+            note.summary = summary
             note.mcqs = mcqs
 
             note.save()
 
             return render(request, "core/upload.html", {
                 "form": UploadForm(),
-                "success": "PDF processed successfully"
+                "success": "PDF processed successfully",
+                "note": note
             })
 
     else:
@@ -81,11 +87,11 @@ def upload(request):
 @login_required
 def note_detail(request, id):
 
-    notes = Note.objects.filter(
-    user=request.user
-    ).order_by('-id')
+    note = get_object_or_404(Note, id=id, user=request.user)
+    notes = Note.objects.filter(user=request.user).order_by('-id')
 
     answer = ""
+    question = ""
 
     if request.method == "POST":
 
@@ -103,7 +109,7 @@ def note_detail(request, id):
         - Answer only from notes
 
         NOTES:
-        {note.content}
+        {note.content if note.content else note.summary}
 
         QUESTION:
         {question}
@@ -113,8 +119,134 @@ def note_detail(request, id):
 
     return render(request, "core/note_detail.html", {
         "note": note,
-        "answer": answer
+        "notes": notes,
+        "answer": answer,
+        "question": question
     })
+
+
+# SIGNUP
+def signup(request):
+    if request.method == "POST":
+        form = UserCreationForm(request.POST)
+        if form.is_valid():
+            user = form.save()
+            login(request, user)
+            return redirect("home")
+    else:
+        form = UserCreationForm()
+    
+    return render(request, "core/signup.html", {
+        "form": form
+    })
+
+
+
+# HELPER TO CALL GEMINI API
+def ask_gemini(prompt):
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        print("GEMINI_API_KEY not found in environment.")
+        return None
+
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+    headers = {
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "contents": [{
+            "parts": [{
+                "text": prompt
+            }]
+        }]
+    }
+
+    try:
+        response = requests.post(url, headers=headers, json=payload, timeout=30)
+        if response.status_code == 200:
+            data = response.json()
+            return data['candidates'][0]['content']['parts'][0]['text']
+        else:
+            print("GEMINI API ERROR status:", response.status_code, response.text)
+            return None
+    except Exception as e:
+        print("GEMINI API EXCEPTION:", e)
+        return None
+
+
+# GENERATE STUDY GUIDE (SUMMARY + MCQS) IN A SINGLE LLM CALL
+def generate_study_guide(text):
+    prompt = f"""
+    You are an AI study assistant.
+    Analyze the following study notes and generate two sections:
+    1. SUMMARY: A student-friendly summary using bullet points of the most important concepts.
+    2. MCQS: Generate 5 multiple-choice questions with options A, B, C, D and the correct answer.
+
+    Format your response exactly as follows:
+    [SUMMARY_START]
+    (Your bullet-point summary here)
+    [SUMMARY_END]
+
+    [MCQS_START]
+    (Your 5 multiple choice questions here in this format:)
+    1. Question
+    A) ...
+    B) ...
+    C) ...
+    D) ...
+    Answer: Correct Option
+    [MCQS_END]
+
+    NOTES:
+    {text}
+    """
+
+    # Try Gemini API first
+    print("Attempting to generate study guide via Gemini API...")
+    response_text = ask_gemini(prompt)
+
+    # Fallback to local Ollama if Gemini key is missing or request fails
+    if not response_text:
+        print("Falling back to local Ollama for study guide...")
+        url = "http://localhost:11434/api/generate"
+        payload = {
+            "model": "phi3",
+            "prompt": prompt,
+            "stream": False
+        }
+        try:
+            response = requests.post(url, json=payload, timeout=180)
+            data = response.json()
+            response_text = data.get("response", "")
+        except Exception as e:
+            print("STUDY GUIDE GENERATION ERROR (Ollama Fallback):", e)
+            return "⚠️ AI summary unavailable", "Unable to generate MCQs."
+
+    if not response_text:
+        return "⚠️ AI summary unavailable", "Unable to generate MCQs."
+
+    # Parse using regular expressions
+    summary = ""
+    summary_match = re.search(r'\[SUMMARY_START\](.*?)\[SUMMARY_END\]', response_text, re.DOTALL)
+    if summary_match:
+        summary = summary_match.group(1).strip()
+
+    mcqs = ""
+    mcqs_match = re.search(r'\[MCQS_START\](.*?)\[MCQS_END\]', response_text, re.DOTALL)
+    if mcqs_match:
+        mcqs = mcqs_match.group(1).strip()
+
+    # Fallback if tags not found
+    if not summary or not mcqs:
+        parts = re.split(r'MCQS|MCQs|QUESTIONS|Questions', response_text, flags=re.IGNORECASE)
+        if len(parts) >= 2:
+            summary = parts[0].replace("[SUMMARY_START]", "").replace("SUMMARY", "").strip()
+            mcqs = parts[1].replace("[MCQS_END]", "").strip()
+        else:
+            summary = response_text
+            mcqs = "Unable to generate MCQs."
+
+    return summary, mcqs
 
 
 # SUMMARIZE TEXT
@@ -143,7 +275,7 @@ def summarize_text(text):
 
     try:
 
-        response = requests.post(url, json=payload)
+        response = requests.post(url, json=payload, timeout=60)
 
         data = response.json()
 
@@ -158,7 +290,14 @@ def summarize_text(text):
 
 # ASK AI
 def ask_ai(prompt):
+    # Try Gemini API first
+    print("Attempting to ask Gemini API...")
+    response_text = ask_gemini(prompt)
+    if response_text:
+        return response_text
 
+    # Fallback to local Ollama
+    print("Falling back to local Ollama for Q&A...")
     url = "http://localhost:11434/api/generate"
 
     payload = {
@@ -169,7 +308,7 @@ def ask_ai(prompt):
 
     try:
 
-        response = requests.post(url, json=payload)
+        response = requests.post(url, json=payload, timeout=60)
 
         data = response.json()
 
@@ -194,7 +333,7 @@ def clean_text(text):
 def generate_mcqs(text):
 
     prompt = f"""
-    Generate 10 multiple choice questions from the notes.
+    Generate 5 multiple choice questions from the notes.
 
     Format:
 
@@ -221,7 +360,7 @@ def generate_mcqs(text):
 
     try:
 
-        response = requests.post(url, json=payload)
+        response = requests.post(url, json=payload, timeout=60)
 
         data = response.json()
 
