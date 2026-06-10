@@ -1,4 +1,8 @@
 from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib.auth.views import LoginView
+from django.contrib.auth import logout, login
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.forms import UserCreationForm
 from .forms import UploadForm
 from .models import Note
 import pdfplumber
@@ -6,11 +10,6 @@ import requests
 import re
 import os
 from dotenv import load_dotenv
-from django.contrib.auth.views import LoginView
-from django.contrib.auth import logout, login
-from django.contrib.auth.decorators import login_required
-from django.contrib.auth.forms import UserCreationForm
-from concurrent.futures import ThreadPoolExecutor
 
 load_dotenv()
 
@@ -18,9 +17,7 @@ load_dotenv()
 # HOME PAGE
 @login_required
 def home(request):
-
     notes = Note.objects.filter(user=request.user).order_by('-id')
-
     return render(request, "core/home.html", {
         "notes": notes
     })
@@ -29,30 +26,23 @@ def home(request):
 # UPLOAD PDF
 @login_required
 def upload(request):
-
     if request.method == "POST":
-
         form = UploadForm(request.POST, request.FILES)
-
         if form.is_valid():
-
             note = form.save(commit=False)
-
             note.user = request.user
-
             note.save()
 
             # EXTRACT TEXT FROM PDF
             text = ""
-
-            with pdfplumber.open(note.file.path) as pdf:
-
-                for page in pdf.pages:
-
-                    page_text = page.extract_text()
-
-                    if page_text:
-                        text += page_text + "\n"
+            try:
+                with pdfplumber.open(note.file.path) as pdf:
+                    for page in pdf.pages:
+                        page_text = page.extract_text()
+                        if page_text:
+                            text += page_text + "\n"
+            except Exception as e:
+                print("PDF text extraction error:", e)
 
             # CLEAN TEXT
             text = clean_text(text)
@@ -60,13 +50,21 @@ def upload(request):
             print("TEXT LENGTH:", len(text))
             print(text[:500])
 
-            # GENERATE STUDY GUIDE (SUMMARY AND MCQS) IN ONE REQUEST TO AVOID CPU OVERLOAD
+            # Validation: Check if PDF contains extractable text
+            if not text:
+                note.delete()
+                return render(request, "core/upload.html", {
+                    "form": form,
+                    "error": "Could not extract any text from the PDF. Please make sure the PDF contains selectable text (not scanned images)."
+                })
+
+            # GENERATE STUDY GUIDE (SUMMARY AND MCQS) SYNCHRONOUSLY
+            # Uses gemini-2.5-flash which is fast (~1-2 seconds)
             summary, mcqs = generate_study_guide(text[:2000])
 
             note.content = text
             note.summary = summary
             note.mcqs = mcqs
-
             note.save()
 
             return render(request, "core/upload.html", {
@@ -74,7 +72,6 @@ def upload(request):
                 "success": "PDF processed successfully",
                 "note": note
             })
-
     else:
         form = UploadForm()
 
@@ -86,7 +83,6 @@ def upload(request):
 # NOTE DETAIL + Q&A
 @login_required
 def note_detail(request, id):
-
     note = get_object_or_404(Note, id=id, user=request.user)
     notes = Note.objects.filter(user=request.user).order_by('-id')
 
@@ -94,9 +90,7 @@ def note_detail(request, id):
     question = ""
 
     if request.method == "POST":
-
         question = request.POST.get("question")
-
         prompt = f"""
         You are an AI study assistant.
 
@@ -114,7 +108,6 @@ def note_detail(request, id):
         QUESTION:
         {question}
         """
-
         answer = ask_ai(prompt)
 
     return render(request, "core/note_detail.html", {
@@ -141,15 +134,15 @@ def signup(request):
     })
 
 
-
-# HELPER TO CALL GEMINI API
+# HELPER TO CALL GEMINI API (v1 / gemini-2.5-flash)
 def ask_gemini(prompt):
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         print("GEMINI_API_KEY not found in environment.")
         return None
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+    # Using stable v1 and gemini-2.5-flash which has active free tier quota
+    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key={api_key}"
     headers = {
         "Content-Type": "application/json"
     }
@@ -174,7 +167,7 @@ def ask_gemini(prompt):
         return None
 
 
-# GENERATE STUDY GUIDE (SUMMARY + MCQS) IN A SINGLE LLM CALL
+# GENERATE STUDY GUIDE (SUMMARY + MCQS)
 def generate_study_guide(text):
     prompt = f"""
     You are an AI study assistant.
@@ -202,7 +195,7 @@ def generate_study_guide(text):
     """
 
     # Try Gemini API first
-    print("Attempting to generate study guide via Gemini API...")
+    print("Attempting to generate study guide via Gemini API (gemini-2.5-flash)...")
     response_text = ask_gemini(prompt)
 
     # Fallback to local Ollama if Gemini key is missing or request fails
@@ -249,45 +242,6 @@ def generate_study_guide(text):
     return summary, mcqs
 
 
-# SUMMARIZE TEXT
-def summarize_text(text):
-
-    prompt = f"""
-    Summarize these study notes clearly.
-
-    RULES:
-    - Use bullet points
-    - Keep important concepts only
-    - Remove repeated text
-    - Student friendly
-
-    CONTENT:
-    {text}
-    """
-
-    url = "http://localhost:11434/api/generate"
-
-    payload = {
-        "model": "phi3",
-        "prompt": prompt,
-        "stream": False
-    }
-
-    try:
-
-        response = requests.post(url, json=payload, timeout=60)
-
-        data = response.json()
-
-        return data.get("response", "")
-
-    except Exception as e:
-
-        print("OLLAMA ERROR:", e)
-
-        return "⚠️ AI summary unavailable"
-
-
 # ASK AI
 def ask_ai(prompt):
     # Try Gemini API first
@@ -299,86 +253,31 @@ def ask_ai(prompt):
     # Fallback to local Ollama
     print("Falling back to local Ollama for Q&A...")
     url = "http://localhost:11434/api/generate"
-
     payload = {
         "model": "phi3",
         "prompt": prompt,
         "stream": False
     }
-
     try:
-
         response = requests.post(url, json=payload, timeout=60)
-
         data = response.json()
-
         return data.get("response", "")
-
     except Exception as e:
-
         print("OLLAMA ERROR:", e)
-
         return "⚠️ AI answer unavailable"
 
 
 # CLEAN TEXT
 def clean_text(text):
-
     text = re.sub(r'\s+', ' ', text)
-
     text = re.sub(r'[^a-zA-Z0-9.,!?()\-\n ]', '', text)
-
     return text.strip()
 
-def generate_mcqs(text):
-
-    prompt = f"""
-    Generate 5 multiple choice questions from the notes.
-
-    Format:
-
-    1. Question
-
-    A)
-    B)
-    C)
-    D)
-
-    Answer: Correct Option
-
-    NOTES:
-    {text}
-    """
-
-    url = "http://localhost:11434/api/generate"
-
-    payload = {
-        "model": "phi3",
-        "prompt": prompt,
-        "stream": False
-    }
-
-    try:
-
-        response = requests.post(url, json=payload, timeout=60)
-
-        data = response.json()
-
-        return data.get("response", "")
-
-    except Exception as e:
-
-        print("MCQ ERROR:", e)
-
-        return "Unable to generate MCQs."
-    
 
 class CustomLoginView(LoginView):
     template_name = "core/login.html"
 
 
 def logout_view(request):
-
     logout(request)
-
     return redirect("login")

@@ -129,6 +129,12 @@
             </div>
         {% endif %}
 
+        {% if error %}
+            <div style="background: rgba(244, 63, 94, 0.1); border: 1px solid rgba(244, 63, 94, 0.25); border-radius: var(--radius-lg); padding: 1rem; margin-bottom: 1.5rem; color: var(--danger); font-size: 0.95rem; text-align: center;">
+                ⚠️ {{ error }}
+            </div>
+        {% endif %}
+
         <form method="POST" enctype="multipart/form-data" class="ai-loading-form" data-loading-text="Parsing PDF, extracting text, generating AI summary and multiple choice questions...">
             {% csrf_token %}
             

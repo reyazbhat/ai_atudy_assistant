@@ -287,21 +287,18 @@ details.full-text-details summary {
             <div class="workspace-left">
                 <div class="glass-card summary-container">
                     <h2 class="section-title">✨ AI Summary</h2>
-                    <div class="summary-text">{{ note.summary|default:note.content }}</div>
+                    <div class="summary-text">{{ note.summary|default:"No summary generated yet." }}</div>
                 </div>
 
-                {% if note.summary %}
-                    <!-- Only show full text details if summary was populated separately -->
-                    <details class="glass-card full-text-details" id="detailsFullText">
-                        <summary>📖 View Full Extracted Text</summary>
-                        <div class="full-text-content">{{ note.content }}</div>
-                    </details>
-                {% endif %}
+                <!-- Only show full text details if summary was populated separately -->
+                <details class="glass-card full-text-details" id="detailsFullText">
+                    <summary>📖 View Full Extracted Text</summary>
+                    <div class="full-text-content">{{ note.content }}</div>
+                </details>
             </div>
 
             <!-- Right Column: Q&A and MCQs -->
             <div class="workspace-right">
-                
                 <!-- Chat Assistant Card -->
                 <div class="glass-card chat-card">
                     <button class="chat-clear-btn" onclick="clearChat()" title="Reset chat history" id="btnResetChat">
@@ -331,7 +328,6 @@ details.full-text-details summary {
                         </div>
                     </div>
                 {% endif %}
-                
             </div>
             
         </div>
@@ -345,6 +341,9 @@ details.full-text-details summary {
     
     // Function to load and render chat history
     function renderChat() {
+        const chatContainer = document.getElementById("chat-messages");
+        if (!chatContainer) return;
+
         let chatHistory = [];
         try {
             chatHistory = JSON.parse(localStorage.getItem("chat_history_" + noteId)) || [];
@@ -361,7 +360,6 @@ details.full-text-details summary {
             localStorage.setItem("chat_history_" + noteId, JSON.stringify(chatHistory));
         }
 
-        const chatContainer = document.getElementById("chat-messages");
         chatContainer.innerHTML = "";
         
         chatHistory.forEach(msg => {
