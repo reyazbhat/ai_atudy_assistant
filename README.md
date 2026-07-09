@@ -199,15 +199,6 @@ Display Results
 * Cloud Storage Integration
 * Collaborative Study Groups
 
-## 📸 Results
-
-* Login Page
-
-* Dashboard
-* Upload Section
-* AI Chat Interface
-* Notes Generation Feature
-
 ## 🧪 Installation
 
 ### Clone Repository
