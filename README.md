@@ -199,11 +199,10 @@ Display Results
 * Cloud Storage Integration
 * Collaborative Study Groups
 
-## 📸 Screenshots
-
-Add screenshots of:
+## 📸 Results
 
 * Login Page
+
 * Dashboard
 * Upload Section
 * AI Chat Interface
